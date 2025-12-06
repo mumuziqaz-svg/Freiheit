@@ -1,0 +1,125 @@
+def viginere_enc(message, key)://维吉尼亚密码的加密和解密功能
+    cipher_txt = []
+    for i in range(0, len(message)):
+        # 核心加密逻辑：明文字符（数字） + 密钥字符（数字），模26（确保结果在0-25之间）
+        cipher_txt.append( (message[i] + key[i%len(key)]) % 26 )
+    return cipher_txt
+def viginere_dec(cipher, key):
+    plain_txt = []
+    for i in range(0, len(cipher)):
+        # 核心解密逻辑：密文字符（数字） - 密钥字符（数字），模26
+        plain_txt.append( (cipher[i] - key[i%len(key)]) % 26 )
+    return plain_txt
+def main():
+    # 测试加密：明文数字[0,15,15,11,4] + 密钥数字[3,14,6]
+    result = viginere_enc([0,15,15,11,4], [3,14,6])
+    print(result)  # 运行后输出加密结果
+    
+    # 测试解密：密文数字[13,3,31,14,16] + 密钥数字[3,14,6]
+    result_2 = viginere_dec([13,3,31,14,16], [3,14,6])
+    print(result_2)  # 运行后输出解密结果
+if __name__ == "__main__":
+    main()
+
+//计算最大公约数
+def gcd(a:int,b:int)->int:
+    collected_info=[]  # 存储每一步的 [a, a//b, b, a%b]
+    r = -1
+    while r != 0:
+        one_line=[a,a//b,b,a%b]  # 每一步：被除数、商、除数、余数
+        r=a%b                    # 更新余数
+        a=b                      # 除数变新的被除数
+        b=r                      # 余数变新的除数
+        collected_info.append(one_line)
+    return a,collected_info[:-1]  # 返回GCD + 除最后一步（余数为0）外的所有步骤
+
+//模的逆运算
+def inverse(a:int,m:int)->int:
+    result,table=gcd(m,a)  # 注意传参是(m,a)，因为欧几里得算法先算大的数
+    if result != 1:
+        return -1  # GCD≠1，无逆元
+    x=0
+    y=1
+    # 反向遍历欧几里得步骤（从最后一步往回算）
+    for row in range(1,len(table)+1):
+        prev_x = x
+        x = y
+        # 核心迭代公式：y = 前一轮x - 前一轮y * 商
+        y = prev_x + y*(-1)*table[-row][1]
+    return y%m  # 取模保证结果在0~m-1范围内
+
+
+//快速幂运算
+def fast_exponentiation(a:int,b:int,m:int)->int:
+    b=bin(b)[2:]  # 转二进制，去掉前缀'0b'
+    result=1
+    for num in b:  # 遍历二进制每一位
+        result = (result**2)%m  # 先平方，再取模
+        if num=='1':  # 二进制位为1时，乘底数再取模
+            result = (result*a)%m
+    return result
+
+//判断一个数是否为素数
+def fermat(p:int,prob:float)->bool:
+    import random
+    final_probability=0
+    already_chosen=set([])  # 避免重复选同一个a
+    while final_probability < prob:  # 直到达到目标概率
+        size_of_set = len(already_chosen)
+        if size_of_set == p-1:  # 所有a都测试过，必为素数
+            return True
+        # 随机选a，且保证gcd(a,p)=1（若gcd≠1，说明p有因数a，非素数）
+        while True:
+            chosen_element = random.randint(1,p-1)
+            if gcd(chosen_element,p)[0] != 1:  # gcd返回(值, 步骤)，取第一个值
+                return False
+            already_chosen.add(chosen_element)
+            if size_of_set != len(already_chosen):
+                break
+        # 费马测试核心：a^(p-1) mod p 是否等于1
+        if fast_exponentiation(chosen_element,p-1,p) != 1:
+            print(f'Not a prime because of: {chosen_element}')
+            return False
+        final_probability = final_probability + (1-final_probability)*0.5  # 概率提升50%
+    return True
+
+//求整数a的所有真除数（不包含自身），用于后续 “原根判断”（只需遍历 φ(m) 的除数）
+
+def divisors(a:int)->list:
+    result=set([1])  # 1是所有数的除数，用集合去重
+    for i in range(2,int(a**0.5)+1):
+        if a%i==0:
+            result.add(i)
+            result.add(a//i)
+    return sorted(list(result))  # 排序返回（原代码未排序，建议补充）
+
+//判断a是否是模m（素数）的原根：
+def is_generator(a:int,m:int)->bool:
+    GCD,placeholder = gcd(a,m)
+    if GCD != 1:  # 原根需与m互质
+        return False
+    divisors_of_phi_m=divisors(m-1)  # φ(m)=m-1的真除数
+    for power in divisors_of_phi_m:
+        # 若存在除数次幂≡1，说明阶<m-1，不是原根
+        if fast_exponentiation(a,power,m)==1:
+            return False
+    return True
+
+//实现 DH 密钥交换
+def DH_KEX(g:int,p:int,x:int,y:int)->int:
+    # 校验：g是原根、p是素数
+    if is_generator(g,p) == False:
+        return -1
+    if fermat(p,0.99999) == False:
+        return -1
+    # 计算g^(xy) mod p（实际工程中不会直接算x*y，而是Alice算g^x mod p传给Bob，Bob算(g^x)^y mod p）
+    return fast_exponentiation(g,x*y,p)
+
+//ElGamal 加密
+基于 DH 密钥交换的非对称加密
+def main():
+    print(is_generator(3,7))  # 测试原根判断，输出True
+
+if __name__=="__main__":
+    main()
+
