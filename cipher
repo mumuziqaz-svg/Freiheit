@@ -1,4 +1,5 @@
-def viginere_enc(message, key)://维吉尼亚密码的加密和解密功能
+//维吉尼亚密码的加密和解密功能
+def viginere_enc(message, key):
     cipher_txt = []
     for i in range(0, len(message)):
         # 核心加密逻辑：明文字符（数字） + 密钥字符（数字），模26（确保结果在0-25之间）
@@ -21,7 +22,7 @@ def main():
 if __name__ == "__main__":
     main()
 
-//计算最大公约数
+//计算最大公约数欧几里得算法
 def gcd(a:int,b:int)->int:
     collected_info=[]  # 存储每一步的 [a, a//b, b, a%b]
     r = -1
@@ -33,7 +34,7 @@ def gcd(a:int,b:int)->int:
         collected_info.append(one_line)
     return a,collected_info[:-1]  # 返回GCD + 除最后一步（余数为0）外的所有步骤
 
-//模的逆运算
+//模的逆运算（扩展欧几里得算法）
 def inverse(a:int,m:int)->int:
     result,table=gcd(m,a)  # 注意传参是(m,a)，因为欧几里得算法先算大的数
     if result != 1:
@@ -49,7 +50,7 @@ def inverse(a:int,m:int)->int:
     return y%m  # 取模保证结果在0~m-1范围内
 
 
-//快速幂运算
+//快速幂运算（模幂运算）
 def fast_exponentiation(a:int,b:int,m:int)->int:
     b=bin(b)[2:]  # 转二进制，去掉前缀'0b'
     result=1
@@ -59,7 +60,7 @@ def fast_exponentiation(a:int,b:int,m:int)->int:
             result = (result*a)%m
     return result
 
-//判断一个数是否为素数
+//判断一个数是否为素数（费马素性检测）
 def fermat(p:int,prob:float)->bool:
     import random
     final_probability=0
@@ -83,7 +84,7 @@ def fermat(p:int,prob:float)->bool:
         final_probability = final_probability + (1-final_probability)*0.5  # 概率提升50%
     return True
 
-//求整数a的所有真除数（不包含自身），用于后续 “原根判断”（只需遍历 φ(m) 的除数）
+//除数求解：求整数a的所有真除数（不包含自身），用于后续 “原根判断”（只需遍历 φ(m) 的除数）
 
 def divisors(a:int)->list:
     result=set([1])  # 1是所有数的除数，用集合去重
@@ -93,7 +94,7 @@ def divisors(a:int)->list:
             result.add(a//i)
     return sorted(list(result))  # 排序返回（原代码未排序，建议补充）
 
-//判断a是否是模m（素数）的原根：
+//原根判断：判断a是否是模m（素数）的原根：
 def is_generator(a:int,m:int)->bool:
     GCD,placeholder = gcd(a,m)
     if GCD != 1:  # 原根需与m互质
@@ -117,6 +118,17 @@ def DH_KEX(g:int,p:int,x:int,y:int)->int:
 
 //ElGamal 加密
 基于 DH 密钥交换的非对称加密
+ElGamal 加密
+基于 DH 密钥交换的非对称加密，核心逻辑：
+加密：c = (g^k mod p, m * (y^k mod p))（k 随机，y 是公钥）；
+解密：m = c2 * (c1^x)^-1 mod p（x 是私钥）。
+RSA 加密
+基于大整数分解的非对称加密，核心逻辑：
+生成密钥：选两个素数 p/q，n=p*q，φ(n)=(p-1)(q-1)，选 e（与 φ(n) 互质），d=e 的逆元 mod φ(n)；
+加密：c = m^e mod n；
+解密：m = c^d mod n。
+
+//主函数
 def main():
     print(is_generator(3,7))  # 测试原根判断，输出True
 
