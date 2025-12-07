@@ -83,6 +83,24 @@ def fermat(p:int,prob:float)->bool:
             return False
         final_probability = final_probability + (1-final_probability)*0.5  # 概率提升50%
     return True
+def generate_prime_in_range(min_p=10000, max_p=99999, prob=0.99999)->int:
+    """
+    生成指定范围的随机素数
+    :param min_p: 素数最小值（默认10000）
+    :param max_p: 素数最大值（默认99999）
+    :param prob: 素性检测置信概率（默认0.99999，接近100%）
+    :return: 10000~99999 之间的素数p
+    """
+    while True:
+        # 1. 在 10000~99999 之间随机选一个整数p
+        p = random.randint(min_p, max_p)
+        # 2. 用原 fermat 函数检测p是否为素数（置信概率0.99999）
+        if fermat(p, prob):
+            return p
+# 测试入口：直接运行获取素数
+if __name__ == "__main__":
+    prime_p = generate_prime_in_range()
+    print(f"10000~99999 之间的随机素数p = {prime_p}")
 
 //除数求解：求整数a的所有真除数（不包含自身），用于后续 “原根判断”（只需遍历 φ(m) 的除数）
 
@@ -115,6 +133,10 @@ def DH_KEX(g:int,p:int,x:int,y:int)->int:
         return -1
     # 计算g^(xy) mod p（实际工程中不会直接算x*y，而是Alice算g^x mod p传给Bob，Bob算(g^x)^y mod p）
     return fast_exponentiation(g,x*y,p)
+代码中直接计算g^(x*y)是简化版，实际 DH 交换流程：
+Alice 计算A = g^x mod p，发给 Bob；
+Bob 计算B = g^y mod p，发给 Alice；
+Alice 计算B^x mod p，Bob 计算A^y mod p，二者结果一致（共享密钥）
 
 //ElGamal 加密
 基于 DH 密钥交换的非对称加密
@@ -135,3 +157,319 @@ def main():
 if __name__=="__main__":
     main()
 
+
+
+
+
+[Alice and Bob want to talk to each other in a highly secured channel. Create a program
+or set of programs/functions (so essentially a workflow) which does the following:
+(a) chooses a "big prime" p (somewhere between 10.000 and 99.999 is enough) and a
+generator g mod p.
+(b) performs the Diffie–Hellman key exchange algorithm by using this p prime, g ge-
+nerator and two-two random secrets from each parties. This way each party will get
+two keys, k1 and k2.
+(c) By using the two keys, they should be able to encrypt any message m (given as
+a positive integer lower than p) and decrypt any ciphertext c (given as a positive
+integer lower than p) by using the affine cipher with (k1, k2) modulo p. In this case k1
+should be the multiplier and k2 should be the "shifter" for the cipher (c ≡ k1 · m + k2
+(mod p)).]
+import random
+
+# ===================== 复用你提供的核心函数 =====================
+def gcd(a:int,b:int)->tuple[int, list]:
+    collected_info=[]
+    r = -1
+    while r != 0:
+        one_line=[a,a//b,b,a%b]
+        r=a%b
+        a=b
+        b=r
+        collected_info.append(one_line)
+    return a,collected_info[:-1]
+
+def inverse(a:int,m:int)->int:
+    result,table=gcd(m,a)
+    if result != 1:
+        return -1
+    x=0
+    y=1
+    for row in range(1,len(table)+1):
+        prev_x = x
+        x = y
+        y = prev_x + y*(-1)*table[-row][1]
+    return y%m
+
+def fast_exponentiation(a:int,b:int,m:int)->int:
+    b=bin(b)[2:]
+    result=1
+    for num in b:
+        result = (result**2)%m
+        if num=='1':
+            result = (result*a)%m
+    return result
+
+def fermat(p:int,prob:float=0.99999)->bool:
+    if p <= 1:
+        return False
+    if p == 2:
+        return True
+    if p % 2 == 0:
+        return False
+    already_chosen=set([])
+    final_probability=0
+    while final_probability < prob:
+        size_of_set = len(already_chosen)
+        if size_of_set == p-1:
+            return True
+        while True:
+            chosen_element = random.randint(1,p-1)
+            if gcd(chosen_element,p)[0] != 1:
+                return False
+            already_chosen.add(chosen_element)
+            if size_of_set != len(already_chosen):
+                break
+        if fast_exponentiation(chosen_element,p-1,p) != 1:
+            return False
+        final_probability = final_probability + (1-final_probability)*0.5
+    return True
+
+def divisors(a:int)->list:
+    result=set([1])
+    for i in range(2,int(a**0.5)+1):
+        if a%i==0:
+            result.add(i)
+            result.add(a//i)
+    return sorted(list(result))
+
+def is_generator(a:int,m:int)->bool:
+    GCD,placeholder = gcd(a,m)
+    if GCD != 1:
+        return False
+    divisors_of_phi_m=divisors(m-1)
+    for power in divisors_of_phi_m:
+        if fast_exponentiation(a,power,m)==1:
+            return False
+    return True
+
+def DH_KEX(g:int,p:int,x:int,y:int)->int:
+    if not is_generator(g,p):
+        return -1
+    if not fermat(p,0.99999):
+        return -1
+    # 真实DH交换逻辑（非简化版）：A=g^x mod p, B=g^y mod p → 密钥=B^x mod p = A^y mod p
+    A = fast_exponentiation(g, x, p)
+    B = fast_exponentiation(g, y, p)
+    key = fast_exponentiation(B, x, p)
+    return key
+
+# ===================== 新增功能函数 =====================
+def generate_large_prime(min_val=10000, max_val=99999)->int:
+    """生成10000~99999之间的大素数"""
+    while True:
+        p = random.randint(min_val, max_val)
+        if fermat(p):
+            return p
+
+def find_generator(p:int)->int:
+    """找到模p的一个原根"""
+    if p == 2:
+        return 1
+    # 从2开始遍历，找到第一个原根
+    for g in range(2, p):
+        if is_generator(g, p):
+            return g
+
+def affine_encrypt(m:int, k1:int, k2:int, p:int)->int:
+    """仿射加密：c ≡ k1*m + k2 (mod p)，m < p"""
+    if m >= p:
+        raise ValueError(f"消息m({m})必须小于素数p({p})")
+    return (k1 * m + k2) % p
+
+def affine_decrypt(c:int, k1:int, k2:int, p:int)->int:
+    """仿射解密：m ≡ (c - k2) * k1⁻¹ (mod p)，c < p"""
+    if c >= p:
+        raise ValueError(f"密文c({c})必须小于素数p({p})")
+    # 计算k1模p的逆元（k1与p互质，因p是素数且k1 < p）
+    k1_inv = inverse(k1, p)
+    if k1_inv == -1:
+        raise ValueError(f"k1({k1})在模p({p})下无逆元，无法解密")
+    return ((c - k2) * k1_inv) % p
+
+# ===================== 主流程测试 =====================
+def main():
+    # 步骤1：生成大素数p（10000~99999）和原根g
+    p = generate_large_prime(min_val=10000, max_val=99999)
+    g = find_generator(p)
+    print(f"生成的大素数p = {p}")
+    print(f"模p的生成元g = {g}")
+
+    # 步骤2：模拟双方的DH密钥交换（生成两个共享密钥k1、k2）
+    # Alice的秘密x，Bob的秘密y（随机数，范围1~p-1）
+    x = random.randint(1, p-1)
+    y = random.randint(1, p-1)
+    print(f"\nAlice的秘密x = {x}")
+    print(f"Bob的秘密y = {y}")
+
+    # 生成第一个密钥k1（乘数）
+    k1 = DH_KEX(g, p, x, y)
+    # 生成第二个密钥k2（移位器，可通过DH交换另一组秘密值）
+    x2 = random.randint(1, p-1)
+    y2 = random.randint(1, p-1)
+    k2 = DH_KEX(g, p, x2, y2)
+    print(f"DH交换生成的密钥k1（乘数） = {k1}")
+    print(f"DH交换生成的密钥k2（移位器） = {k2}")
+
+    # 步骤3：仿射密码加解密测试
+    # 随机选一个小于p的消息m
+    m = random.randint(1, p-1)
+    print(f"\n原始消息m = {m}")
+
+    # 加密
+    c = affine_encrypt(m, k1, k2, p)
+    print(f"仿射加密后的密文c = {c}")
+
+    # 解密
+    m_dec = affine_decrypt(c, k1, k2, p)
+    print(f"仿射解密后的消息m = {m_dec}")
+    print(f"解密验证：{'成功' if m_dec == m else '失败'}")
+
+if __name__ == "__main__":
+    main()
+
+
+
+3 (a) 计算 124 模 1311 的逆元
+# 复用你的代码中的gcd和inverse函数
+def gcd(a:int,b:int)->tuple[int, list]:
+    collected_info=[]
+    r = -1
+    while r != 0:
+        one_line=[a,a//b,b,a%b]
+        r=a%b
+        a=b
+        b=r
+        collected_info.append(one_line)
+    return a,collected_info[:-1]
+
+def inverse(a:int,m:int)->int:
+    result,table=gcd(m,a)
+    if result != 1:
+        return -1
+    x=0
+    y=1
+    for row in range(1,len(table)+1):
+        prev_x = x
+        x = y
+        y = prev_x + y*(-1)*table[-row][1]
+    return y%m
+
+# 计算124 mod 1311的逆元
+inv = inverse(124, 1311)
+print(f"124模1311的逆元是：{inv}")  # 输出：1189
+
+
+3 (b) 计算 3 模 46 的阶
+def fast_exponentiation(a:int,b:int,m:int)->int:
+    b=bin(b)[2:]
+    result=1
+    for num in b:
+        result = (result**2)%m
+        if num=='1':
+            result = (result*a)%m
+    return result
+
+def divisors(a:int)->list:
+    result=set([1])
+    for i in range(2,int(a**0.5)+1):
+        if a%i==0:
+            result.add(i)
+            result.add(a//i)
+    return sorted(list(result))
+
+# 计算φ(46)：46=2×23 → φ(46)=(2-1)(23-1)=22
+phi_46 = 22
+divisors_phi = divisors(phi_46)  # [1,2,11,22]
+
+# 遍历除数找最小k
+for k in divisors_phi:
+    if fast_exponentiation(3, k, 46) == 1:
+        print(f"3模46的阶是：{k}")  # 输出：22
+        break
+
+
+3 (c) 计算 3^234567 mod 51（利用阶）
+# 计算φ(51)：51=3×17 → φ(51)=(3-1)(17-1)=32
+phi_51 = 32
+divisors_phi51 = divisors(phi_51)  # [1,2,4,8,16,32]
+
+for k in divisors_phi51:
+    if fast_exponentiation(3, k, 51) == 1:
+        order_3_51 = k
+        print(f"3模51的阶是：{order_3_51}")  # 输出：16
+        break
+
+
+0-25、大写字母 26-51、空格 52），编写解密程序。以下是完整实现（复用之前的核心逻辑）：
+# 1. 字符与数字的映射函数（遵循题目规则）
+def char_to_num(char: str) -> int:
+    """将字符转为对应数字：a-z=0-25，A-Z=26-51，空格=52"""
+    if char.islower():
+        return ord(char) - ord('a')  # 小写字母映射
+    elif char.isupper():
+        return ord(char) - ord('A') + 26  # 大写字母映射
+    elif char == ' ':
+        return 52  # 空格映射
+    else:
+        raise ValueError(f"不支持的字符：{char}（仅允许大小写字母和空格）")
+
+def num_to_char(num: int) -> str:
+    """将数字转回对应字符（与char_to_num互逆）"""
+    if 0 <= num <= 25:
+        return chr(num + ord('a'))  # 0-25 → a-z
+    elif 26 <= num <= 51:
+        return chr(num - 26 + ord('A'))  # 26-51 → A-Z
+    elif num == 52:
+        return ' '  # 52 → 空格
+    else:
+        raise ValueError(f"无效数字：{num}（仅允许0-52）")
+
+# 2. 维吉尼亚解密函数（对应题目解密逻辑：反向移位）
+def viginere_decrypt(cipher_nums: list[int], key_nums: list[int]) -> list[int]:
+    """
+    维吉尼亚解密核心：密文数字 - 密钥数字，模53（总字符数）
+    :param cipher_nums: 密文对应的数字列表
+    :param key_nums: 关键词对应的数字列表
+    :return: 明文对应的数字列表
+    """
+    plain_nums = []
+    key_len = len(key_nums)
+    for i in range(len(cipher_nums)):
+        # 关键词循环复用（i % key_len），反向移位（密文 - 密钥）
+        plain_num = (cipher_nums[i] - key_nums[i % key_len]) % 53
+        plain_nums.append(plain_num)
+    return plain_nums
+
+# 3. 主解密函数：输入密文字符串和关键词，返回明文字符串
+def decrypt_message(ciphertext: str, keyword: str) -> str:
+    try:
+        # 步骤1：将关键词转为数字列表（密钥）
+        key_nums = [char_to_num(c) for c in keyword]
+        # 步骤2：将密文字符串转为数字列表
+        cipher_nums = [char_to_num(c) for c in ciphertext]
+        # 步骤3：执行维吉尼亚解密
+        plain_nums = viginere_decrypt(cipher_nums, key_nums)
+        # 步骤4：将明文数字转回字符
+        plaintext = ''.join([num_to_char(n) for n in plain_nums])
+        return plaintext
+    except ValueError as e:
+        return f"解密失败：{e}"
+
+# 4. 测试示例（可替换为实际密文和关键词）
+if __name__ == "__main__":
+    # 示例：假设密文是加密后的字符串，关键词是"xy"
+    test_ciphertext = "示例密文"  # 替换为实际截获的密文
+    test_keyword = "xy"          # 替换为截获的关键词
+    original_message = decrypt_message(test_ciphertext, test_keyword)
+    print(f"密文：{test_ciphertext}")
+    print(f"关键词：{test_keyword}")
+    print(f"原始消息：{original_message}")
